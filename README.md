@@ -71,6 +71,15 @@ machine-verifiable fact or the claim fails closed:
 - **elicitation gap** — could better prompting/tools beat the eval (sandbagging)?
 - **threshold validity** — is the pass/fail line justified or arbitrary?
 - **behavioural limit** — is this even a property behavioural evidence can reach?
+- **STREAM disclosure** — does the report disclose the methodology a reader needs to trust the
+  number ([STREAM](https://arxiv.org/abs/2508.09853))?
+- **evidence staleness** — is the evidence current for the *deployed* version, or does it predate
+  the checkpoint it assures ([dynamic safety cases](https://arxiv.org/abs/2412.17618))?
+
+*Adjacent prior art (credited, differentiated): the "Trust Certificate" for enterprise AI agents
+([arXiv:2606.04037](https://arxiv.org/abs/2606.04037)) grades an agent's deployment readiness with
+graduated verdicts; this grades whether an evaluation **claim** is licensed by its evidence — a
+different unit of assurance, one-directional and fail-closed.*
 
 ## Why you can trust the verdict
 
