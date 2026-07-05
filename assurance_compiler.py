@@ -14,6 +14,18 @@ combination: eval-native defeaters + machine-verified evidence + coverage denomi
 Vocabulary bridge to Assurance 2.0:  ADMIT = sustained claim · REFUSE = active (unrefuted)
 defeater · NEEDS_RULE = unsupported / missing warrant.
 
+Prior art & differentiation (cite before publishing):
+  * "Toward Pre-Deployment Assurance for Enterprise AI Agents" (arXiv:2606.04037) issues a Trust
+    Certificate with GRADUATED verdicts (Approved / Conditional / Rejected) for agent deployment.
+    Structurally adjacent to this tool's verdict spine, but the axis differs: it grades an agent's
+    deployment readiness; this grades whether an EVALUATION CLAIM is licensed by its evidence. Ours
+    is one-directional & fail-closed (NEEDS_RULE default; a defeater must be AFFIRMATIVELY refuted,
+    never assumed), eval-native (defeaters specific to evaluation evidence), over machine-verified
+    evidence nodes, with a declared coverage denominator. Not a competitor — a different unit of
+    assurance (the claim, not the agent).
+  * Disclosure & currency defeaters below operationalize STREAM (arXiv:2508.09853, reporting
+    transparency) and dynamic safety cases (arXiv:2412.17618, continual re-validation).
+
 Layers:
   1. reuse claim_compiler.check for the generic evidence→claim type rules (benchmark→deployment, …)
   2. add EVAL-NATIVE DEFEATERS: named threats specific to *evaluation evidence* — a claim is
@@ -100,17 +112,35 @@ DEFEATERS = {
         "latent structure)",
         "'Behavioural Assurance Cannot Verify...' arXiv:2605.15164 (the audit gap)",
         "property_is_behavioural"),
+    "stream_disclosure": Defeater(
+        "stream_disclosure",
+        "Does the report DISCLOSE the methodology a reader needs to trust the number — elicitation, "
+        "prompts/scaffold, sample size + statistical treatment, contamination controls?",
+        "evidence.stream_fields_disclosed is True (the STREAM-required reporting fields are present)",
+        "STREAM: Standard for Transparently Reporting Evaluations in AI Model Reports (arXiv:2508.09853)",
+        "stream_fields_disclosed"),
+    "evidence_staleness": Defeater(
+        "evidence_staleness",
+        "Is the evidence CURRENT for the deployed model/version, or does it predate the checkpoint or "
+        "context it is being used to assure (a safety case must be continually re-validated)?",
+        "evidence.current_for_deployed_version is True (the eval targets the deployed artifact, within "
+        "a stated staleness horizon)",
+        "Dynamic safety cases for frontier AI (arXiv:2412.17618)",
+        "current_for_deployed_version"),
 }
 
 # which defeaters MUST be addressed for a given claim category (fail-closed: unlisted-but-attached
 # defeaters still fire; these are the MINIMUM set the checker demands for the category).
 REQUIRED_DEFEATERS = {
-    "GENERAL_CAPABILITY": ["gradeability", "contamination", "instrument_validity", "elicitation_gap"],
+    "GENERAL_CAPABILITY": ["gradeability", "contamination", "instrument_validity", "elicitation_gap",
+                           "stream_disclosure"],
     "DEPLOYMENT_SAFETY": ["gradeability", "contamination", "instrument_validity", "elicitation_gap",
-                          "threshold_validity", "behavioural_limit"],
+                          "threshold_validity", "behavioural_limit", "stream_disclosure",
+                          "evidence_staleness"],
     "CALIBRATION": ["instrument_validity", "abstention_semantics", "confidence_definition",
                     "contamination"],
-    "INABILITY": ["elicitation_gap", "threshold_validity", "contamination", "behavioural_limit"],
+    "INABILITY": ["elicitation_gap", "threshold_validity", "contamination", "behavioural_limit",
+                  "stream_disclosure", "evidence_staleness"],
 }
 # claim-type → category, for eval-native claims not in claim_compiler's CLAIM_CAT
 EVAL_CLAIM_CAT = {
@@ -162,6 +192,8 @@ class Evidence:
     elicitation_documented: bool = False
     threshold_justified: bool = False
     property_is_behavioural: bool = False
+    stream_fields_disclosed: bool = False       # STREAM reporting fields present (arXiv:2508.09853)
+    current_for_deployed_version: bool = False  # eval targets the deployed artifact (dynamic safety case)
 
 
 @dataclass
@@ -274,7 +306,8 @@ def _all_controls(kind="benchmark"):
                     contamination_controlled=True, instrument_selftest_passed=True,
                     failure_modes_classified=True, confidence_definition_stated=True,
                     elicitation_documented=True, threshold_justified=True,
-                    property_is_behavioural=True)
+                    property_is_behavioural=True, stream_fields_disclosed=True,
+                    current_for_deployed_version=True)
 
 
 GOLD = [
@@ -327,6 +360,18 @@ GOLD = [
      Step("s", _all_controls("vibes"), "well_calibrated"), cc.V.NEEDS_RULE),
     ("computational evidence cannot back an inability claim → refuse (eval-type rule)",
      Step("s", _all_controls("simulation"), "lacks_capability"), cc.V.REFUSE),
+    ("capability claim, STREAM methodology NOT disclosed → refuse (undisclosed = defeated)",
+     Step("s", Evidence("representative_eval", machine_verified=True, gradeability_verified=True,
+                        contamination_controlled=True, instrument_selftest_passed=True,
+                        elicitation_documented=True, current_for_deployed_version=True),
+          "general_capability"), cc.V.REFUSE),
+    ("inability claim, all controls incl. STREAM + currency → admit",
+     Step("s", _all_controls("representative_eval"), "lacks_capability"), cc.V.ADMIT),
+    ("inability claim, evidence STALE for the deployed version → refuse (dynamic safety case)",
+     Step("s", Evidence("representative_eval", machine_verified=True, contamination_controlled=True,
+                        threshold_justified=True, property_is_behavioural=True,
+                        elicitation_documented=True, stream_fields_disclosed=True),
+          "lacks_capability"), cc.V.REFUSE),
 ]
 
 
