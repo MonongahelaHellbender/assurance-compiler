@@ -127,6 +127,28 @@ DEFEATERS = {
         "a stated staleness horizon)",
         "Dynamic safety cases for frontier AI (arXiv:2412.17618)",
         "current_for_deployed_version"),
+    "baseline_comparison": Defeater(
+        "baseline_comparison",
+        "Is a marginal-capability claim measured against NAMED baselines (weaker models / existing "
+        "tools), or asserted in the abstract?",
+        "evidence.baseline_named is True (specific baseline models or tools are named + tested)",
+        "Anthropic jailbreak-severity framework (capability-gain-over-baseline); the "
+        "coverage-denominator discipline",
+        "baseline_named"),
+    "external_validation": Defeater(
+        "external_validation",
+        "Was the claim independently validated by a NAMED third party, or only self-asserted?",
+        "evidence.externally_validated is True (a named independent evaluator tested it)",
+        "third-party AI audit literature (Stanford HAI); CAISI-style external red-team",
+        "externally_validated"),
+    "scope_discipline": Defeater(
+        "scope_discipline",
+        "Is a negative/absence claim properly SCOPED (e.g. 'none FOUND, as of DATE, under TESTS X'), "
+        "or overstated as 'none exist'?",
+        "evidence.scope_stated is True (the claim names its time bound and test scope, and claims "
+        "absence-of-evidence not proof-of-absence)",
+        "safety-case absence-argument discipline; AbstentionBench 2506.09038",
+        "scope_stated"),
 }
 
 # which defeaters MUST be addressed for a given claim category (fail-closed: unlisted-but-attached
@@ -141,12 +163,25 @@ REQUIRED_DEFEATERS = {
                     "contamination"],
     "INABILITY": ["elicitation_gap", "threshold_validity", "contamination", "behavioural_limit",
                   "stream_disclosure", "evidence_staleness"],
+    # safety-announcement / system-card rule pack: each credits a specific careful discipline
+    # marginal-capability / uplift claims: the defining disciplines are a NAMED baseline + proper
+    # elicitation. contamination is a fixed-BENCHMARK concern, not a blanket requirement here — raise
+    # it as an extra_defeater when the capability claim rests on a memorizable benchmark.
+    "CAPABILITY_GAIN": ["baseline_comparison", "elicitation_gap"],
+    "EXTERNAL_VALIDATION": ["external_validation", "threshold_validity"],
+    "SAFEGUARD_EFFICACY": ["instrument_validity", "contamination", "threshold_validity"],
+    "SCOPED_NEGATIVE": ["scope_discipline", "elicitation_gap"],
 }
 # claim-type → category, for eval-native claims not in claim_compiler's CLAIM_CAT
 EVAL_CLAIM_CAT = {
     "well_calibrated": "CALIBRATION", "honest": "CALIBRATION", "knows_what_it_doesnt_know": "CALIBRATION",
     "lacks_capability": "INABILITY", "cannot_do_X": "INABILITY", "safe_incapable": "INABILITY",
     "general_capability": "GENERAL_CAPABILITY", "deployment_safety": "DEPLOYMENT_SAFETY",
+    # safety-announcement / system-card claim types
+    "no_unique_capability": "CAPABILITY_GAIN", "capability_bounded_by_baseline": "CAPABILITY_GAIN",
+    "independently_validated": "EXTERNAL_VALIDATION", "safeguards_validated": "EXTERNAL_VALIDATION",
+    "safeguard_blocks_technique": "SAFEGUARD_EFFICACY", "safeguard_efficacy": "SAFEGUARD_EFFICACY",
+    "no_universal_jailbreak_found": "SCOPED_NEGATIVE", "none_found_in_scope": "SCOPED_NEGATIVE",
 }
 # type-level rules for the eval-native claim categories the base engine doesn't know
 # (well_calibrated / lacks_capability). Defeaters do the substantive work; this only checks the
@@ -160,6 +195,19 @@ EVAL_TYPE_RULES = {
     ("SINGLE_INSTANCE", "INABILITY"): cc.V.REFUSE,
     ("COMPUTATIONAL", "CALIBRATION"): cc.V.REFUSE,
     ("COMPUTATIONAL", "INABILITY"): cc.V.REFUSE,
+    # safety-announcement / system-card rule pack — a report/eval is the right KIND of thing;
+    # the defeaters (named baselines, external validation, scope discipline, threshold) do the work
+    ("BENCHMARK", "CAPABILITY_GAIN"): cc.V.ADMIT,
+    ("REPRESENTATIVE_EVAL", "CAPABILITY_GAIN"): cc.V.ADMIT,
+    ("SINGLE_INSTANCE", "CAPABILITY_GAIN"): cc.V.REFUSE,
+    ("BENCHMARK", "EXTERNAL_VALIDATION"): cc.V.ADMIT,
+    ("REPRESENTATIVE_EVAL", "EXTERNAL_VALIDATION"): cc.V.ADMIT,
+    ("BENCHMARK", "SAFEGUARD_EFFICACY"): cc.V.ADMIT,
+    ("REPRESENTATIVE_EVAL", "SAFEGUARD_EFFICACY"): cc.V.ADMIT,
+    ("COMPUTATIONAL", "SAFEGUARD_EFFICACY"): cc.V.REFUSE,
+    ("BENCHMARK", "SCOPED_NEGATIVE"): cc.V.ADMIT,
+    ("REPRESENTATIVE_EVAL", "SCOPED_NEGATIVE"): cc.V.ADMIT,
+    ("SINGLE_INSTANCE", "SCOPED_NEGATIVE"): cc.V.REFUSE,
 }
 
 
@@ -194,6 +242,9 @@ class Evidence:
     property_is_behavioural: bool = False
     stream_fields_disclosed: bool = False       # STREAM reporting fields present (arXiv:2508.09853)
     current_for_deployed_version: bool = False  # eval targets the deployed artifact (dynamic safety case)
+    baseline_named: bool = False                # marginal-capability claim names its baselines
+    externally_validated: bool = False          # a named third party independently tested it
+    scope_stated: bool = False                  # a negative claim names its time/test bound
 
 
 @dataclass
@@ -307,7 +358,8 @@ def _all_controls(kind="benchmark"):
                     failure_modes_classified=True, confidence_definition_stated=True,
                     elicitation_documented=True, threshold_justified=True,
                     property_is_behavioural=True, stream_fields_disclosed=True,
-                    current_for_deployed_version=True)
+                    current_for_deployed_version=True, baseline_named=True,
+                    externally_validated=True, scope_stated=True)
 
 
 GOLD = [
@@ -372,6 +424,29 @@ GOLD = [
                         threshold_justified=True, property_is_behavioural=True,
                         elicitation_documented=True, stream_fields_disclosed=True),
           "lacks_capability"), cc.V.REFUSE),
+    ("capability-gain claim WITH named baselines + elicitation + contamination → admit",
+     Step("s", Evidence("benchmark", baseline_named=True, elicitation_documented=True,
+                        contamination_controlled=True), "no_unique_capability"), cc.V.ADMIT),
+    ("capability-gain claim WITHOUT named baselines → refuse (abstract superiority claim)",
+     Step("s", Evidence("benchmark", elicitation_documented=True, contamination_controlled=True),
+          "no_unique_capability"), cc.V.REFUSE),
+    ("external-validation claim: independently tested AND bar defined → admit",
+     Step("s", Evidence("benchmark", externally_validated=True, threshold_justified=True),
+          "independently_validated"), cc.V.ADMIT),
+    ("external-validation claim: CAISI-tested but superlative 'strong' (no bar) → refuse (threshold)",
+     Step("s", Evidence("benchmark", externally_validated=True), "independently_validated"),
+     cc.V.REFUSE),
+    ("scoped-negative: 'none found, at time of writing, under tests X' + elicitation → admit",
+     Step("s", Evidence("benchmark", scope_stated=True, elicitation_documented=True),
+          "no_universal_jailbreak_found"), cc.V.ADMIT),
+    ("scoped-negative overstated as 'none exist' (scope NOT stated) → refuse",
+     Step("s", Evidence("benchmark", elicitation_documented=True),
+          "no_universal_jailbreak_found"), cc.V.REFUSE),
+    ("safeguard-efficacy with machine-verified eval + all controls → admit",
+     Step("s", _all_controls("representative_eval"), "safeguard_blocks_technique"), cc.V.ADMIT),
+    ("safeguard-efficacy '>99% blocked' with NO validated instrument → refuse",
+     Step("s", Evidence("benchmark", threshold_justified=True, contamination_controlled=True),
+          "safeguard_blocks_technique"), cc.V.REFUSE),
 ]
 
 
