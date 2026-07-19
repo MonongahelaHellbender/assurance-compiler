@@ -87,7 +87,10 @@ different unit of assurance, one-directional and fail-closed.*
 - **Zero LLM in the decision path:** the verdict is a table lookup over cited rules.
 - **Machine-verifiable evidence:** the intended evidence nodes are outputs of self-validating
   instruments ([honesty-atlas](https://github.com/MonongahelaHellbender/honesty-atlas),
-  gradeability-audit, oracle-shield), re-verified when cited — not human say-so.
+  gradeability-audit, oracle-shield), re-verified when cited. This is *not* a differentiator from
+  the assurance-case literature: SRI's Evidential Tool Bus has produced tool-executed,
+  provenance-carrying assurance evidence since ~2010, from the same group as CLARISSA. See
+  [`RELATED_WORK.md`](RELATED_WORK.md).
 - **The checker validates itself first:** `--selftest` runs 18 planted cases (including planted
   overclaims that MUST refuse) and the engine refuses to be trusted until they pass.
 - **Lean-checked core:** the underlying claim-compiler kernel's soundness properties are proved
@@ -95,9 +98,14 @@ different unit of assurance, one-directional and fail-closed.*
 
 ## What this is — and is not
 
-The claim is the **combination** — eval-native defeaters + machine-verified evidence +
-fail-closed coverage — not "the first machine-checkable safety case" (CLARISSA has priority on
-machine-checked assurance arguments). The illustrative ledger uses paraphrased, unattributed
+**No novelty is claimed.** An earlier version of this section claimed the *combination* —
+eval-native defeaters + machine-verified evidence + fail-closed coverage. A problem-shaped
+prior-art search retired that: every conjunct has an owner (SRI's Evidential Tool Bus; Baconian
+eliminative argumentation for the coverage denominator; GRADE for typed downgrade rules; FTC
+substantiation doctrine for pre-dissemination reasonable basis; Reiter's negation-as-failure for
+unstated-control-is-a-defeater), and a conjunction of owned parts is not a contribution. CLARISSA
+has priority on machine-checked assurance arguments. What is here is an open, zero-dependency,
+eval-domain instantiation — engineering and pedagogy. See [`RELATED_WORK.md`](RELATED_WORK.md). The illustrative ledger uses paraphrased, unattributed
 claims; auditing a specific named model card is a deliberate, separate step. It is a discipline
 for licensing claims, not a truth oracle: it says whether the evidence *licenses the wording*,
 not whether the model is safe.
